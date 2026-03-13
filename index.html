@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inbank - Loan Decision Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #6d28d9;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(109, 40, 217, 0.3);
+            margin-top: -8px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-violet-100 rounded-3xl shadow-2xl p-10 border border-white/50">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-black text-gray-900 tracking-tight">Inbank</h1>
+            <p class="text-gray-500 mt-2 font-medium italic">Loan decision engine by Michał Braszak</p>
+        </header>
+
+        <form id="loanForm" class="space-y-8">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Personal ID Code</label>
+                <input type="text" name="personal_code" placeholder="00000000000" requiredinputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full px-5 py-4 rounded-2xl border-2 border-transparent focus:border-violet-500 focus:bg-white bg-gray-50 outline-none transition-all text-lg font-semibold shadow-sm">
+            </div>
+
+            <div>
+                <div class="flex justify-between items-end mb-3">
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-widest">Loan Amount</label>
+                    <span id="amountValue" class="text-violet-700 font-black text-2xl">4000 €</span>
+                </div>
+                <input type="range" name="amount" min="2000" max="10000" step="100" value="4000" 
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-700"
+                    oninput="document.getElementById('amountValue').innerText = this.value + ' €'">
+                <div class="flex justify-between text-[10px] text-gray-400 mt-2 font-bold">
+                    <span>2000 €</span>
+                    <span>10 000 €</span>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex justify-between items-end mb-3">
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-widest">Period</label>
+                    <span id="periodValue" class="text-violet-700 font-black text-2xl">12 mo.</span>
+                </div>
+                <input type="range" name="period" min="12" max="60" step="1" value="12" 
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-700"
+                    oninput="document.getElementById('periodValue').innerText = this.value + ' mo.'">
+                <div class="flex justify-between text-[10px] text-gray-400 mt-2 font-bold">
+                    <span>12 MONTHS</span>
+                    <span>60 MONTHS</span>
+                </div>
+            </div>
+
+            <button type="submit" 
+                class="w-full bg-violet-700 text-white font-extrabold py-5 rounded-2xl hover:bg-violet-800 active:scale-[0.97] transition-all shadow-xl shadow-violet-200 text-lg uppercase tracking-wider">
+                Calculate My Offer
+            </button>
+        </form>
+
+        <div id="result" class="mt-10 hidden transition-all duration-500"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loanForm');
+        const resultDiv = document.getElementById('result');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            resultDiv.innerHTML = '<div class="text-center text-violet-400 animate-pulse font-bold tracking-widest uppercase text-xs">Processing...</div>';
+            resultDiv.classList.remove('hidden');
+
+            try {
+                const response = await fetch('engine.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.approved) {
+                    const cardColor = data.conditions_differ ? 'bg-orange-500' : 'bg-emerald-500';
+                    const badgeColor = data.conditions_differ ? 'bg-orange-600/40' : 'bg-emerald-600/40';
+
+                    resultDiv.innerHTML = `
+                        <div class="${cardColor} p-8 rounded-3xl text-white shadow-2xl transform transition-all hover:scale-[1.02] duration-300">
+                            <h3 class="font-bold text-white/80 text-xs uppercase tracking-[0.2em]">Our Offer</h3>
+                            <div class="mt-4">
+                                <p class="text-5xl font-black">${data.amount} <span class="text-2xl font-light">€</span></p>
+                                <p class="text-white/90 mt-1 font-medium">Approved for ${data.period} months</p>
+                                
+                                ${data.note ? `
+                                    <div class="mt-6 flex items-start gap-3 ${badgeColor} p-4 rounded-xl border border-white/20">
+                                        <p class="text-sm font-medium italic leading-relaxed text-white">
+                                            ${data.note}
+                                        </p>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="bg-rose-500 p-8 rounded-3xl text-white shadow-xl border border-rose-400">
+                            <h3 class="font-bold text-white/70 text-xs uppercase tracking-widest">Decision</h3>
+                            <p class="text-xl font-extrabold mt-3">${data.message}</p>
+                            <p class="text-xs text-white/60 mt-2 italic">Please contact our support for more details.</p>
+                        </div>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `
+                    <div class="bg-gray-700 p-6 rounded-2xl text-red-400 text-center font-black uppercase text-xs tracking-widest border border-red-500/30">
+                        Server connection error
+                    </div>`;
+            }
+        });
+    </script>
+</body>
+</html>
